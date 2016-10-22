@@ -20,7 +20,7 @@ squareSumUI::squareSumUI(QWidget *parent) :
  * Программа должна содержать в себе документацию и тесты.
  */
 
-
+// TODO разобраться почему нет результатов после 80000000
 squareSumUI::~squareSumUI()
 {
     delete ui;
@@ -29,19 +29,26 @@ squareSumUI::~squareSumUI()
 void squareSumUI::on_genSquares_clicked()
 {
     ui->logListWidget->clear();
-    this->generateSequence(100);
-    this->findSumSquares(ui->leIn->text().toInt());
-
-    // TODO переделать на замену значений в таблице
-    QHash<int, int>::const_iterator iter = m_squareSumsHash.constBegin();
-    QHash<int,int>::const_iterator stop = m_squareSumsHash.constEnd();
-    while (iter != stop) {
-        ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-        ++iter;
+    QString inText = ui->leIn->text();
+    m_inNumber = ui->leIn->text().toInt();
+    //Делаем проверку на переполнение INT в строке ввода и на то, что ввели текст.
+    if(inText!= 0 && m_inNumber == 0)
+    {
+        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее 2 147 483 647");
     }
+    else
+    {
+        this->generateSequence();
+        this->findSumSquares(m_inNumber);
 
-
-    ui->logListWidget->addItem(0);
+        // TODO переделать на замену значений в таблице
+        QHash<int, int>::const_iterator iter = m_squareSumsHash.constBegin();
+        QHash<int,int>::const_iterator stop = m_squareSumsHash.constEnd();
+        while (iter != stop) {
+            ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
+            ++iter;
+        }
+    }
 }
 
 /**
@@ -76,8 +83,43 @@ bool squareSumUI::generateSequence(int n_count)
     return true;
 }
 
+bool squareSumUI::generateSequence()
+{
+    QTime start = QTime::currentTime();
+    int number = 1;
+    int sum = number;
+    int border = INT_MAX - 1000000;
+    m_squaresSet.clear();
+    m_squaresSet.insert(sum);
+    do{
+        number+=2;
+        if(sum >= border)
+        {
+            //Проверка на переполнение int
+            double tmp = (double)sum+(double)number;
+            if(tmp > INT_MAX)
+            {
+                break;
+            }
+            else
+            {
+                sum += number;
+            }
+        }
+        else
+        {
+            sum += number;
+        }
+        m_squaresSet.insert(sum);
+
+    }while(sum < m_inNumber);
+    ui->logListWidget->insertItem(0,"generation time=" + QString::number(start.elapsed()) + " ms");
+    return true;
+}
+
 bool squareSumUI::findSumSquares(int n_inputNumber)
 {
+    QTime start = QTime::currentTime();
     m_squareSumsHash.clear();
     if(m_squaresSet.contains(n_inputNumber))
     {
@@ -95,6 +137,7 @@ bool squareSumUI::findSumSquares(int n_inputNumber)
             m_squareSumsHash.insert(entryInSet,dif);
         }
     }
+    ui->logListWidget->insertItem(0,"find time="+QString::number(start.elapsed())+" ms");
 
     return true;
 }
