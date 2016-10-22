@@ -2,6 +2,7 @@
 #define SQUARESUMUI_H
 
 #include <QMainWindow>
+#include <QSet>
 
 namespace Ui {
 class squareSumUI;
@@ -21,8 +22,11 @@ private slots:
 private:
     Ui::squareSumUI *ui;
     QList<int> m_list; // TODO: сделать sharedPointer'ом
+    QSet<int> m_squaresSet; /** @brief Используется для хранения квадратов чисел.*/
+    QHash<int, int> m_squareSumsHash;
 
-    bool generateSequence(int n_fromNumber, int n_count);
+    bool generateSequence(int n_count);
+    bool findSumSquares(int n_inputNumber);
 };
 
 #endif // SQUARESUMUI_H
