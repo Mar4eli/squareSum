@@ -7,6 +7,7 @@ squareSumUI::squareSumUI(QWidget *parent) :
 {
     ui->setupUi(this);
     m_squaresSetPtr = QSharedPointer<QSet<qint64>>(new QSet<qint64>());
+    m_squareSumsHashPtr = QSharedPointer<QHash<qint64,qint64>>(new QHash<qint64,qint64>());
 }
 // НА MSVC 64 работает быстрее
 /* Постановка задачи
@@ -219,10 +220,37 @@ void squareSumUI::on_generationFinished(int n_time)
     ui->logListWidget->insertItem(0, "generation time="+QString::number(n_time));
     ui->logListWidget->insertItem(0,"Set size="+QString::number(m_squaresSetPtr->size()));
 
-    this->findSumSquaresPtr(m_inNumber);
+    findSquareSumWorker *worker = new findSquareSumWorker(m_squareSumsHashPtr, m_squaresSetPtr, m_inNumber);
+    QObject::connect(worker,
+                     SIGNAL(resultReady(int)),
+                     this,
+                     SLOT(on_findSquaresThreadFinished(int)));
+
+    QObject::connect(worker,
+                     SIGNAL(finished()),
+                     worker,
+                     SLOT(deleteLater()));
+    worker->start();
+    //TODO: а как остановить?)))
+
+//    this->findSumSquaresPtr(m_inNumber);
+//    // TODO переделать на замену значений в таблице
+//    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
+//    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
+//    while (iter != stop) {
+//        ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
+//        ++iter;
+    //    }
+}
+
+void squareSumUI::on_findSquaresThreadFinished(int n_time)
+{
+    ui->logListWidget->insertItem(0, "find time="+QString::number(n_time));
+    ui->logListWidget->insertItem(0,"find hash="+QString::number(m_squareSumsHashPtr->size()));
+
     // TODO переделать на замену значений в таблице
-    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
-    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
+    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHashPtr->constBegin();
+    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHashPtr->constEnd();
     while (iter != stop) {
         ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
         ++iter;

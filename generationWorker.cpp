@@ -1,6 +1,6 @@
 #include "generationWorker.h"
 
-generationWorker::generationWorker(QSharedPointer<QSet<qint64> > n_set, qint64 n_inNumber) : QThread()
+generationWorker::generationWorker(QSharedPointer<QSet<long long int>> n_set, long long int n_inNumber) : QThread()
 {
     m_sharedSet = n_set;
     m_inNumber = n_inNumber;

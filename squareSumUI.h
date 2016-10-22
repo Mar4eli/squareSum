@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <QException>
 #include <generationWorker.h>
+#include <findSquareSumWorker.h>
 
 namespace Ui {
 class squareSumUI;
@@ -37,6 +38,7 @@ private:
     QVector<qint64> m_squaresVector; /** @brief Используется для хранения квадратов чисел.*/
     std::vector<qint64> m_squaresStdVector;
     QHash<qint64, qint64> m_squareSumsHash;
+    QSharedPointer<QHash<qint64, qint64>> m_squareSumsHashPtr;
     qint64 m_inNumber;
 
     bool generateSequence();
@@ -53,6 +55,7 @@ private:
     bool findSumSquaresPtr(qint64 n_inputNumber);
 private slots:
     void on_generationFinished(int n_time);
+    void on_findSquaresThreadFinished(int n_time);
 };
 
 #endif // SQUARESUMUI_H

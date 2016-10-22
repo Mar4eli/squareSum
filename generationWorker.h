@@ -15,7 +15,7 @@ class generationWorker: public QThread
 signals:
     void resultReady(int);
 public:
-    generationWorker(QSharedPointer<QSet<qint64>> n_set, qint64 n_inNumber);
+    generationWorker(QSharedPointer<QSet<long long> > n_set, long long n_inNumber);
 private:
     bool generateSequence();
     QSharedPointer<QSet<qint64>> m_sharedSet;
