@@ -15,8 +15,14 @@ public:
     explicit squareSumUI(QWidget *parent = 0);
     ~squareSumUI();
 
+private slots:
+    void on_genSquares_clicked();
+
 private:
     Ui::squareSumUI *ui;
+    QList<int> m_list; // TODO: сделать sharedPointer'ом
+
+    bool generateSequence(int n_fromNumber, int n_count);
 };
 
 #endif // SQUARESUMUI_H
