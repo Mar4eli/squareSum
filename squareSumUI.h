@@ -19,16 +19,16 @@ public:
     ~squareSumUI();
 
 private slots:
-    void on_genSquares_clicked();
+    void on_findSquares_clicked();
 
 private:
     Ui::squareSumUI *ui;
-    QSet<int> m_squaresSet; /** @brief Используется для хранения квадратов чисел.*/
-    QHash<int, int> m_squareSumsHash;
-    int m_inNumber;
+    QSet<qint64> m_squaresSet; /** @brief Используется для хранения квадратов чисел.*/
+    QHash<qint64, qint64> m_squareSumsHash;
+    qint64 m_inNumber;
 
     bool generateSequence();
-    bool findSumSquares(int n_inputNumber);
+    bool findSumSquares(qint64 n_inputNumber);
 
 //    Для теста скорости чтения и закрузки из файла
 //    bool saveSequenceToFile();

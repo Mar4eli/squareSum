@@ -7,9 +7,10 @@ squareSumUI::squareSumUI(QWidget *parent) :
 {
     ui->setupUi(this);
 }
+// НА MSVC 64 работает быстрее
 /* Постановка задачи
- * На вход поступает целое число (int). Необходимо найти все варианты разложения данного числа
- * на суммы квадратов двух других целых чисел (int).
+ * На вход поступает целое число (qint64). Необходимо найти все варианты разложения данного числа
+ * на суммы квадратов двух других целых чисел (qint64).
  *
  * Нельзя использовать продвинутые алгебраические и геометрические методы.
  * Программа должна иметь три варианта реализации:
@@ -26,15 +27,18 @@ squareSumUI::~squareSumUI()
     delete ui;
 }
 
-void squareSumUI::on_genSquares_clicked()
+void squareSumUI::on_findSquares_clicked()
 {
     ui->logListWidget->clear();
     QString inText = ui->leIn->text();
-    m_inNumber = ui->leIn->text().toInt();
-    //Делаем проверку на переполнение INT в строке ввода и на то, что ввели текст.
-    if(inText!= 0 && m_inNumber == 0)
+    m_inNumber = ui->leIn->text().toULongLong();
+    m_squaresSet.clear();
+    m_squareSumsHash.clear();
+
+    //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
+    if(inText!= "0" && m_inNumber == 0)
     {
-        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее 2 147 483 647");
+        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
     }
     else
     {
@@ -42,17 +46,15 @@ void squareSumUI::on_genSquares_clicked()
         this->findSumSquares(m_inNumber);
 
         // TODO переделать на замену значений в таблице
-        QHash<int, int>::const_iterator iter = m_squareSumsHash.constBegin();
-        QHash<int,int>::const_iterator stop = m_squareSumsHash.constEnd();
+        QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
+        QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
         while (iter != stop) {
             ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
             ++iter;
         }
-
     }
 }
 
-/* TODO на 32 битной системе проблем с скоростью нет, поэтому чтение из файла не нужно. Можно, конечно, проверить, но быстрее 10ms будет сложно уложиться*/
 /**
  * @brief squareSumUI::generateSequence - генерирует последовательность чисел с шагом 2, начиная с 1.
  * @details Из школьного курса алгебры известно, что квадрат любого натурального числа может быть
@@ -67,30 +69,22 @@ void squareSumUI::on_genSquares_clicked()
 bool squareSumUI::generateSequence()
 {
     QTime start = QTime::currentTime();
-    int number = 1;
-    int sum = number;
-    int border = INT_MAX - 1000000;
+    qint64 number = 1;
+    qint64 sum = number;
+    qint64 border = 9223312036854775807; //уменьшенный INT64_MAX, чтобы ввести границу, когда начинаешь проверять на переполнение.
     m_squaresSet.clear();
     m_squaresSet.insert(sum);
     do{
         number+=2;
         if(sum >= border)
         {
-            //Проверка на переполнение int
-            double tmp = (double)sum+(double)number;
-            if(tmp > INT_MAX)
+            //Проверка на переполнение qint64
+            if(INT64_MAX-sum < number)
             {
                 break;
             }
-            else
-            {
-                sum += number;
-            }
         }
-        else
-        {
-            sum += number;
-        }
+        sum += number;
         m_squaresSet.insert(sum);
 
     }while(sum < m_inNumber);
@@ -98,7 +92,7 @@ bool squareSumUI::generateSequence()
     return true;
 }
 
-bool squareSumUI::findSumSquares(int n_inputNumber)
+bool squareSumUI::findSumSquares(qint64 n_inputNumber)
 {
     QTime start = QTime::currentTime();
     m_squareSumsHash.clear();
@@ -107,9 +101,10 @@ bool squareSumUI::findSumSquares(int n_inputNumber)
         m_squareSumsHash.insert(0, n_inputNumber);
     }
 
-    // Тесты показали, что проверка на наличие повторов не даёт заметного прироста скорости в диапазоне int.
-    int entryInSet;
-    int dif;
+    // Тесты показали, что проверка на наличие повторов не даёт заметного прироста скорости в диапазоне qint64.
+    //связано это с тем, что таких пар не так много, и число лишних проверок превышает число пар.
+    qint64 dif;
+    qint64 entryInSet;
     foreach(entryInSet, m_squaresSet)
     {
         dif = n_inputNumber - entryInSet;
@@ -123,7 +118,19 @@ bool squareSumUI::findSumSquares(int n_inputNumber)
     return true;
 }
 
-//Испытания показали, что на диапазоне INT чтение файла с квадратами прирост скорости не даёт.
+//тест на удаление значения из сета по итератору при проходе показал падение производительности. Логично, т.к. под erase скрывается много операций
+//QSet<qint64>::const_iterator iter = m_squaresSet.constBegin();
+//QSet<qint64>::const_iterator stop = m_squaresSet.constEnd();
+//while (iter != stop) {
+//    dif = n_inputNumber - *iter;
+//    if(m_squaresSet.contains(dif))
+//    {
+//        m_squareSumsHash.insert(*iter,dif);
+//    }
+//    iter = m_squaresSet.erase(iter);
+//}
+
+//Испытания показали, что на диапазоне qint64 чтение файла с квадратами прирост скорости не даёт.
 //bool squareSumUI::saveSequenceToFile()
 //{
 //    QTime start = QTime::currentTime();
@@ -131,7 +138,7 @@ bool squareSumUI::findSumSquares(int n_inputNumber)
 //    if(file->open(QFile::WriteOnly))
 //    {
 //        //комбинируем строку для записи
-//        int entry;
+//        qint64 entry;
 //        QString resultStr;
 //        foreach(entry,m_squaresSet)
 //        {
@@ -163,7 +170,7 @@ bool squareSumUI::findSumSquares(int n_inputNumber)
 //        m_squaresSet.clear();
 //        foreach(entry, listSquare)
 //        {
-//            m_squaresSet.insert(entry.toInt());
+//            m_squaresSet.insert(entry.toqint64());
 //        }
 
 //        file->close();

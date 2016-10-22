@@ -174,16 +174,9 @@
       <widget class="QLineEdit" name="leIn"/>
      </item>
      <item>
-      <widget class="QPushButton" name="genSquares">
+      <widget class="QPushButton" name="findSquares">
        <property name="text">
-        <string>generate squares</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="genSumms">
-       <property name="text">
-        <string>find summs</string>
+        <string>find squares</string>
        </property>
       </widget>
      </item>
