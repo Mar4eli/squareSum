@@ -122,7 +122,14 @@
      <item>
       <widget class="QPushButton" name="findSquaresVector">
        <property name="text">
-        <string>find squares (vector)</string>
+        <string>find squares (single, vector)</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="threadsFindSquares">
+       <property name="text">
+        <string>find squares (threads, qset)</string>
        </property>
       </widget>
      </item>

@@ -13,8 +13,12 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp\
-        squareSumUI.cpp
+        squareSumUI.cpp \
+    generationWorker.cpp \
+    findSquareSumWorker.cpp
 
-HEADERS  += squareSumUI.h
+HEADERS  += squareSumUI.h \
+    generationWorker.h \
+    findSquareSumWorker.h
 
 FORMS    += squareSumUI.ui

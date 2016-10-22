@@ -6,6 +6,7 @@ squareSumUI::squareSumUI(QWidget *parent) :
     ui(new Ui::squareSumUI)
 {
     ui->setupUi(this);
+    m_squaresSetPtr = QSharedPointer<QSet<qint64>>(new QSet<qint64>());
 }
 // НА MSVC 64 работает быстрее
 /* Постановка задачи
@@ -119,29 +120,41 @@ bool squareSumUI::findSumSquares(qint64 n_inputNumber)
 
 void squareSumUI::on_findSquaresVector_clicked()
 {
-    ui->logListWidget->clear();
-    QString inText = ui->leIn->text();
-    m_inNumber = ui->leIn->text().toULongLong();
-    m_squaresSet.clear();
-    m_squareSumsHash.clear();
-
-    //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
-    if(inText != "0" && m_inNumber == 0)
+    try
     {
-        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
-    }
-    else
-    {
-        this->generateSequenceStdVector();
-        this->findSumSquaresStd(m_inNumber);
+        ui->logListWidget->clear();
+        QString inText = ui->leIn->text();
+        m_inNumber = ui->leIn->text().toULongLong();
+        m_squaresVector.clear();
+        m_squaresSet.clear();
+        m_squareSumsHash.clear();
 
-        // TODO переделать на замену значений в таблице
-        QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
-        QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
-        while (iter != stop) {
-            ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-            ++iter;
+        //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
+        if(inText != "0" && m_inNumber == 0)
+        {
+            ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
         }
+        else
+        {
+            if(this->generateSequenceVector())
+            {
+                this->findSumSquares(m_inNumber);
+
+                // TODO переделать на замену значений в таблице
+                QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
+                QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
+                while (iter != stop) {
+                    ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
+                    ++iter;
+                }
+            }
+        }
+    }
+    catch(...)
+    {
+        QString tmp = "К сожалению, QVector падает при большом количестве записей qint64, причём падает на append и move. Времени досконально изучить вопрос не было. Использование std::vector и std::unordered_set || std::set показали худшие результаты.";
+        ui->logListWidget->insertItem(0,tmp);
+        m_squaresVector.clear();
     }
 }
 
@@ -157,8 +170,8 @@ void squareSumUI::on_findSquaresVector_clicked()
  * @return true - если прошло без существенных для нас ошибок. (Переполнение стека тут не учитывается).
  */
 
-//Это даёт прирости в скорости, но у QVector int в качестве ключа, соответственно, когда происходит переполнение int, вектор падает.
-//Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set убивает своим find весь прирост скорости за счёт вектора
+//Это даёт прирости в скорости, но QVector почему-то падает на числах в районе 20 000 000 000 000 000 (17 000 000 000 000 000 работает). Падает, как бы это странно не звучало, на append и операторе move.
+//Не было времени детально в это влезать.
 bool squareSumUI::generateSequenceVector()
 {
     QTime start = QTime::currentTime();
@@ -166,21 +179,34 @@ bool squareSumUI::generateSequenceVector()
     qint64 sum = number;
     qint64 border = 9223312036854775807; //уменьшенный INT64_MAX, чтобы ввести границу, когда начинаешь проверять на переполнение.
     m_squaresVector.clear();
+    qint64 intIndex=0;
     while(sum <= m_inNumber)
     {
-        m_squaresVector.append(sum);
-        number+=2;
-        if(sum >= border)
+        intIndex++;
+        if(intIndex < INT_MAX)
         {
-            //Проверка на переполнение qint64
-            if(INT64_MAX-sum < number)
+            m_squaresVector.append(sum);
+            number+=2;
+            if(sum >= border)
             {
-                break;
+                //Проверка на переполнение qint64
+                if(INT64_MAX-sum < number)
+                {
+                    break;
+                }
             }
+            sum += number;
         }
-        sum += number;
+        else
+        {
+            QString tmp = "К сожалению, QVector падает при большом количестве записей qint64, возхможно из-за использования int в качестве ключа. При превышении INT_MAX, происходит ошибка. Использование std::vector и std::unordered_set || std::set показали худшие результаты.";
+            ui->logListWidget->insertItem(0,tmp);
+            m_squaresVector.clear();
+            return false;
+
+        }
     };
-    ui->logListWidget->insertItem(0,"vectorSize=" + QString::number(m_squaresVector.size()) + " ms");
+    ui->logListWidget->insertItem(0,"vectorSize=" + QString::number(m_squaresVector.size()));
     m_squaresSet = m_squaresVector.toList().toSet();
     m_squaresVector.clear();
     ui->logListWidget->insertItem(0,"generation time=" + QString::number(start.elapsed()) + " ms");
@@ -188,41 +214,60 @@ bool squareSumUI::generateSequenceVector()
     return true;
 }
 
-bool squareSumUI::generateSequenceStdVector()
+void squareSumUI::on_generationFinished(int n_time)
 {
-    QTime start = QTime::currentTime();
-    qint64 number = 1;
-    qint64 sum = number;
-    qint64 border = 9223312036854775807; //уменьшенный INT64_MAX, чтобы ввести границу, когда начинаешь проверять на переполнение.
-    m_squaresStdVector.clear();
-    while(sum <= m_inNumber)
-    {
-        m_squaresStdVector.push_back(sum);
-        number+=2;
-        if(sum >= border)
-        {
-            //Проверка на переполнение qint64
-            if(INT64_MAX-sum < number)
-            {
-                break;
-            }
-        }
-        sum += number;
-    };
-    ui->logListWidget->insertItem(0,"vectorSize=" + QString::number(m_squaresStdVector.size()) + " ms");
-    std::set<qint64> squaresStdSet(m_squaresStdVector.begin(),m_squaresStdVector.end());
-    m_squaresStdSet = squaresStdSet;
-    m_squaresStdVector.clear();
-    ui->logListWidget->insertItem(0,"generation time=" + QString::number(start.elapsed()) + " ms");
+    ui->logListWidget->insertItem(0, "generation time="+QString::number(n_time));
+    ui->logListWidget->insertItem(0,"Set size="+QString::number(m_squaresSetPtr->size()));
 
-    return true;
+    this->findSumSquaresPtr(m_inNumber);
+    // TODO переделать на замену значений в таблице
+    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
+    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
+    while (iter != stop) {
+        ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
+        ++iter;
+    }
 }
 
-bool squareSumUI::findSumSquaresStd(qint64 n_inputNumber)
+//Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set убивает своим find весь прирост скорости за счёт вектора
+//тест на удаление значения из сета по итератору при проходе показал падение производительности. Логично, т.к. под erase скрывается много операций
+//Испытания показали, что на диапазоне qint64 чтение файла с квадратами прирост скорости не даёт.
+
+void squareSumUI::on_threadsFindSquares_clicked()
+{
+    ui->logListWidget->clear();
+    QString inText = ui->leIn->text();
+    m_inNumber = ui->leIn->text().toULongLong();
+    m_squaresSet.clear();
+    m_squareSumsHash.clear();
+
+    //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
+    if(inText != "0" && m_inNumber == 0)
+    {
+        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
+    }
+    else
+    {
+        generationWorker *worker = new generationWorker(m_squaresSetPtr,m_inNumber);
+        QObject::connect(worker,
+                         SIGNAL(resultReady(int)),
+                         this,
+                         SLOT(on_generationFinished(int)));
+
+        QObject::connect(worker,
+                         SIGNAL(finished()),
+                         worker,
+                         SLOT(deleteLater()));
+        worker->start();
+    }
+}
+
+
+bool squareSumUI::findSumSquaresPtr(qint64 n_inputNumber)
 {
     QTime start = QTime::currentTime();
     m_squareSumsHash.clear();
-    if(m_squaresStdSet.find(n_inputNumber) != m_squaresStdSet.end())
+    if(m_squaresSetPtr->contains(n_inputNumber))
     {
         m_squareSumsHash.insert(0, n_inputNumber);
     }
@@ -231,10 +276,10 @@ bool squareSumUI::findSumSquaresStd(qint64 n_inputNumber)
     //связано это с тем, что таких пар не так много, и число лишних проверок превышает число пар.
     qint64 dif;
     qint64 entryInSet;
-    foreach(entryInSet, m_squaresStdSet)
+    foreach(entryInSet, *m_squaresSetPtr)
     {
         dif = n_inputNumber - entryInSet;
-        if(m_squaresStdSet.find(dif) != m_squaresStdSet.end())
+        if(m_squaresSetPtr->contains(dif))
         {
             m_squareSumsHash.insert(entryInSet,dif);
         }
@@ -243,71 +288,3 @@ bool squareSumUI::findSumSquaresStd(qint64 n_inputNumber)
 
     return true;
 }
-
-//тест на удаление значения из сета по итератору при проходе показал падение производительности. Логично, т.к. под erase скрывается много операций
-//QSet<qint64>::const_iterator iter = m_squaresSet.constBegin();
-//QSet<qint64>::const_iterator stop = m_squaresSet.constEnd();
-//while (iter != stop) {
-//    dif = n_inputNumber - *iter;
-//    if(m_squaresSet.contains(dif))
-//    {
-//        m_squareSumsHash.insert(*iter,dif);
-//    }
-//    iter = m_squaresSet.erase(iter);
-//}
-
-//Испытания показали, что на диапазоне qint64 чтение файла с квадратами прирост скорости не даёт.
-//bool squareSumUI::saveSequenceToFile()
-//{
-//    QTime start = QTime::currentTime();
-//    QFile *file = new QFile("sequence.txt");
-//    if(file->open(QFile::WriteOnly))
-//    {
-//        //комбинируем строку для записи
-//        qint64 entry;
-//        QString resultStr;
-//        foreach(entry,m_squaresSet)
-//        {
-//            resultStr=resultStr+QString::number(entry)+";";
-//        }
-//        file->write(resultStr.toUtf8());
-//        file->close();
-//        delete file;
-
-//        ui->logListWidget->insertItem(0,"save time="+QString::number(start.elapsed())+" ms");
-//        return true;
-//    }
-//    else
-//    {
-//        ui->logListWidget->insertItem(0,"Не могу создать файл для сохранения последовательности");
-//        return false;
-//    }
-//}
-
-//bool squareSumUI::loadSequence()
-//{
-//    QTime start = QTime::currentTime();
-//    QFile *file = new QFile("sequence.txt");
-//    if(file->open(QFile::ReadOnly))
-//    {
-//        QString fileStr = file->readAll();
-//        QList<QString> listSquare = fileStr.split(';');
-//        QString entry;
-//        m_squaresSet.clear();
-//        foreach(entry, listSquare)
-//        {
-//            m_squaresSet.insert(entry.toqint64());
-//        }
-
-//        file->close();
-//        delete file;
-
-//        ui->logListWidget->insertItem(0,"load time="+QString::number(start.elapsed())+" ms");
-//        return true;
-//    }
-//    else
-//    {
-//        ui->logListWidget->insertItem(0,"Не могу создать файл для сохранения последовательности");
-//        return false;
-//    }
-//}
