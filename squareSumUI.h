@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QSet>
 #include <QTime>
+#include <QFile>
 
 namespace Ui {
 class squareSumUI;
@@ -22,15 +23,16 @@ private slots:
 
 private:
     Ui::squareSumUI *ui;
-    QList<int> m_list; // TODO: сделать sharedPointer'ом
     QSet<int> m_squaresSet; /** @brief Используется для хранения квадратов чисел.*/
     QHash<int, int> m_squareSumsHash;
     int m_inNumber;
 
-    bool generateSequence(int n_count);
     bool generateSequence();
     bool findSumSquares(int n_inputNumber);
 
+//    Для теста скорости чтения и закрузки из файла
+//    bool saveSequenceToFile();
+//    bool loadSequence();
 };
 
 #endif // SQUARESUMUI_H
