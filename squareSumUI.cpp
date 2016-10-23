@@ -3,6 +3,8 @@
 
 const qint64 ITERATION_STEP=100000000;
 
+//TODO сделать вариант на основе http://itnotesblog.ru/note.php?id=145
+//Т.е. потоки не через qConcurrent, а ручные.
 squareSumUI::squareSumUI(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::squareSumUI)
@@ -11,21 +13,7 @@ squareSumUI::squareSumUI(QWidget *parent) :
     m_squaresSetPtr = QSharedPointer<QSet<qint64>>(new QSet<qint64>());
     m_squareSumsHashPtr = QSharedPointer<QHash<qint64,qint64>>(new QHash<qint64,qint64>());
 }
-// НА MSVC 64 работает быстрее
-/* Постановка задачи
- * На вход поступает целое число (qint64). Необходимо найти все варианты разложения данного числа
- * на суммы квадратов двух других целых чисел (qint64).
- *
- * Нельзя использовать продвинутые алгебраические и геометрические методы.
- * Программа должна иметь три варианта реализации:
- * 1. однопоточная.
- * 2. многопоточная.
- * 3. OpenCV (не уверен, что успею за этот срок).
- *
- * Программа должна содержать в себе документацию и тесты.
- */
 
-// TODO сделать под компилятор 64
 squareSumUI::~squareSumUI()
 {
     delete ui;
@@ -174,8 +162,10 @@ void squareSumUI::on_findSquaresVector_clicked()
  * @return true - если прошло без существенных для нас ошибок. (Переполнение стека тут не учитывается).
  */
 
-//Это даёт прирости в скорости, но QVector почему-то падает на числах в районе 20 000 000 000 000 000 (17 000 000 000 000 000 работает). Падает, как бы это странно не звучало, на append и операторе move.
-//Не было времени детально в это влезать.
+//Обнаружил падение у QVector на больших числах (в районе 20 000 000 000 000 000, при 17 000 000 000 000 000 работает).
+//Жаль, могло бы оптимизировать скорость генерации процентов на 20.
+//У QVector в качестве ключа int. Это была моя первая идея. Но нет, падает на append на директиве Move. Не было времени досканально копаться.
+//Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set || srd::unordered_set убивает своим find весь прирост скорости за счёт вектора.
 bool squareSumUI::generateSequenceVector()
 {
     QTime start = QTime::currentTime();
@@ -240,6 +230,7 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
         n_offset++;
     }
     qint64 i;
+    qreal z;
     for(i = n_offset; i <= max; ++i)
     {
         qint64 x=i*i;
@@ -248,49 +239,41 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
             j = n_number - x;
             if(j != 0)
             {
-                qint64 z = qSqrt(j);
-                if(j % z == 0)
+                if(modf(qSqrt(j),&z) == 0)
                 {
                     m_squareSumsHash.insert(x,j);
-                    //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(i)<<" and " <<QString::number(j)<<"from" << QThread::currentThread();
-                    qDebug()<<QString::number(x)+";"+QString::number(j);
                 }
             }
             else
             {
                 m_squareSumsHash.insert(x,j);
-                //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(i)<<" and " <<QString::number(j)<<"from" << QThread::currentThread();
-                //qDebug()<<QString::number(x)+";"+QString::number(j);;
             }
         }
         else
         {
             break;
         }
-
-        //        qint64 x = qSqrt(i);
-        //        if(i % x == 0)
-        //        {
-        //            j = n_number - i;
-        //            qint64 z = qSqrt(j);
-        //            if(j % z == 0)
-        //            {
-        //                m_squareSumsHash.insert(i,j);
-        //            }
-        //        }
     }
     //qDebug()<<QString::number(n_offset)<<" to " <<QString::number(max)<<"from" << QThread::currentThread();
     return m_squareSumsHash;
+
+    // более длительный вариант кода
+    //        qint64 x = qSqrt(i);
+    //        if(modf(qSqrt(i),&z) == 0)
+    //        {
+    //            j = n_number - i;
+    //            qint64 z = qSqrt(j);
+    //            if(j % z == 0)
+    //            {
+    //                m_squareSumsHash.insert(i,j);
+    //            }
+    //        }
 }
 
 void reduce(QHash<qint64,qint64> &result, const QHash<qint64,qint64> &w)
 {
     result.unite(w);
 }
-
-//Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set убивает своим find весь прирост скорости за счёт вектора
-//тест на удаление значения из сета по итератору при проходе показал падение производительности. Логично, т.к. под erase скрывается много операций
-//Испытания показали, что на диапазоне qint64 чтение файла с квадратами прирост скорости не даёт.
 
 void squareSumUI::on_threadsFindSquares_clicked()
 {
@@ -330,13 +313,16 @@ void squareSumUI::on_threadsFindSquares_clicked()
         listOfPairs.append(QPair<qint64,qint64>((iterations+1)*ITERATION_STEP,m_inNumber));
 
         QHash<qint64,qint64> total = mappedReduced(listOfPairs, findSquareSumConcur, reduce);
+        qDebug()<<"slonnnnnnnnn" + QString::number(total.size())+" " + QString::number(start.elapsed())+" ms";
         QHash<qint64, qint64>::const_iterator iter = total.constBegin();
         QHash<qint64,qint64>::const_iterator stop = total.constEnd();
+
+        QStringList results;
         while (iter != stop) {
-            ui->logListWidget->insertItem(0,QString::number(iter.key())+";"+QString::number(iter.value()));
+            results.append(QString::number(iter.key())+";"+QString::number(iter.value()));
             ++iter;
         }
-        qDebug()<<QString::number(total.size());
+        ui->logListWidget->insertItems(0,results);
     }
 }
 
