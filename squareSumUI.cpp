@@ -1,8 +1,6 @@
 #include "squareSumUI.h"
 #include "ui_squareSumUI.h"
 
-const qint64 ITERATION_STEP=100000000;
-
 //TODO сделать вариант на основе http://itnotesblog.ru/note.php?id=145
 //Т.е. потоки не через qConcurrent, а ручные.
 squareSumUI::squareSumUI(QWidget *parent) :
@@ -244,36 +242,100 @@ bool squareSumUI::generateSequenceVector()
 }
 
 /**
- * @brief findSquareSumConcur - потоко безопасный метод поиска слагаемых.
- * @details Данный метод работает с изолированным набором данных, использует мало памяти и при массовом запуске в потоках может занять весь процессор.
+ * @brief squareSumUI::on_threadsFindSquares_clicked - обработчик слота нажатия на кнопку "find squares (threads, computations)"
+ * @details очищает контейнеры. Считывает данные из поля ввода. Рассчитывает, сколько потоков, с какими диапазонами нужно создать и запускает многопоточный поиск с использованием API высокого уровня QtConcurrent.
+ * Алгоритм нетребователен к памяти, но процессор может загрузить полностью.
+ *
+ * Начинает обгонять однопоточный вариант при числах от 400 000 000 000 000.
+ */
+void squareSumUI::on_threadsFindSquares_clicked()
+{
+    if(this->getInNumber())
+    {
+        ui->logListWidget->clear();
+        m_squaresSet.clear();
+        m_squareSumsHash.clear();
+
+        findSquareSumWorker *worker = new findSquareSumWorker(m_inNumber);
+        QObject::connect(worker,
+                         SIGNAL(resultReady(int,QStringList)),
+                         this,
+                         SLOT(on_findWorkerResultsReady(int,QStringList)));
+        QObject::connect(worker,
+                         SIGNAL(finished()),
+                         worker,
+                         SLOT(deleteLater()));
+
+        this->blockButtons(true);
+        worker->start();
+    }
+}
+
+/**
+ * @brief squareSumUI::blockButtons - блокирует кнопки на время обработки запроса.
+ * @param[in] n_block - булевская переменная блокировки.
+ */
+void squareSumUI::blockButtons(bool n_block)
+{
+    //у пользователя спрашиваю блокировать ли.
+    //а метод спрашивает доступны ли.
+    n_block = !n_block;
+    ui->findSquares->setEnabled(n_block);
+    ui->findSquaresVector->setEnabled(n_block);
+    ui->threadsFindSquares->setEnabled(n_block);
+    ui->findSquaresComputation->setEnabled(n_block);
+}
+
+/**
+ * @brief squareSumUI::on_findWorkerResultsReady - в данной имплементации, обработчик сигнала resultReady класса findSquareSumWorker
+ * @param[in] n_time - время затраченное на поиск суммы.
+ * @param[in] n_resultsSL - массив строчного представления найденных пар.
+ */
+void squareSumUI::on_findWorkerResultsReady(int n_time, QStringList n_resultsSL)
+{
+    n_resultsSL.prepend("time="+QString::number(n_time)+" ms");
+    ui->logListWidget->insertItems(0,n_resultsSL);
+    this->blockButtons(false);
+}
+
+void squareSumUI::on_findSquaresComputation_clicked()
+{
+    if(this->getInNumber())
+    {
+        m_squareSumsHash.clear();
+        if(this->findSquareComputation())
+        {
+            this->squareSumHashToLog();
+        }
+    }
+}
+
+/**
+ * @brief findSquareSumConcur - однопоточный метод поиска слагаемых на процессоре.
+ * @details Данный метод использует мало памяти, но при больших числах требователен к тактам, однопоточноый запуск может повесить приложение надолго.
  *
  * В теле описан один твик производительности, позволивший увеличить её на 2,5% на тестовой машине.
- * @param n_offsetInNumberPair - парный объект, содержащий в себе: offset - начальное натуральное число для поиска квадратов, и inNumber - число, которое мы должны получить в сумме.
- * @return QHash<qint64,qint64>, содержащий все найденные пары значений. Практика показала, что длина такого хеша редко превышает 0 элементов, поэтому передача по указателю не дала бы заметного прироста производительности.
+
+ * @return true, если всё прошло хорошо.
  */
-QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_offsetInNumberPair)
+bool squareSumUI::findSquareComputation()
 {
-    //меньше памяти, больше вычислений процессора
-    QHash<qint64,qint64> squareSumsHash;
-    qint64 offset = n_offsetInNumberPair.first;
-    qint64 inNumber = n_offsetInNumberPair.second;
+    QTime start = QTime::currentTime();
+    //Граничное условие. Дальше этого числа не стоит пытаться возвести его в квадрат, т.к. выпадешь с переполнением и задачу не решишь.
+    //Из условия задачи следует, что максимальное значение квадрата одного из слагаемых меньше, либо равно заданному числу. Т.е. 20^2 = 20^2 + 0.
+    //В таком случае, нам не надо исследовать числа большие, чем sqrt(заданное_число) c округлением в меньшую сторону.
+    qint64 max = qSqrt(m_inNumber);
 
-    qint64 max = offset + ITERATION_STEP;
-
-    if(offset == 0)
-    {
-        offset++;
-    }
     qint64 i,j;
     qreal z;
     //находим квадрат предыдущего числа из последовательности. Можно было сделать -1 до, но оставил для наглядности.
-    qint64 x=(offset-1)*(offset-1);
+    qint64 x=0;
 
     //квадрат любого натурального числа N может быть представлен,
     //как сумма N элементов последовательности натуральных чисел, начинающейся с 1, и с шагом 2.
     //1,3,5,7...
-    qint64 sequence = 1 + (offset-1)*2;
-    for(i = offset; i <= max; ++i)
+    qint64 sequence = 1;
+    for(i = 1; i <= max; ++i)
     {
         //используя последовательность и сложение вместо возведения в степень, мы экономим такты.
         //так как процессор разбивает операцию умножения, на операции сложения.
@@ -284,85 +346,30 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_offsetInNumberPa
         sequence+=2;
 
         //проверяем, меньше ли полученное число искомого числа.
-        if(x <= inNumber)
+        if(x <= m_inNumber)
         {
             //находим второе слагаемое
-            j = inNumber - x;
+            j = m_inNumber - x;
             if(j != 0)
             {
                 //проверяем, является ли оно квадратом. т.е. пустой ли остаток от взятия корня.
                 if(modf(qSqrt(j),&z) == 0)
                 {
-                    squareSumsHash.insert(x,j);
+                    m_squareSumsHash.insert(x,j);
                 }
             }
             else
             {
                 //0*0=0 - тоже квадрат.
-                squareSumsHash.insert(x,j);
+                m_squareSumsHash.insert(x,j);
             }
         }
         else
         {
             break;
         }
-
     }
-
-    return squareSumsHash;
-}
-
-/**
- * @brief reduce - функция объединения результатов работы потока поиска слагаемых.
- * @details Делает банальное объединение хешей.
- * @param[in] result - параметр, в который сохраняется суммарный результат потоков.
- * @param[in] w - результат из конкретного потока.
- */
-void reduce(QHash<qint64,qint64> &result, const QHash<qint64,qint64> &w)
-{
-    result.unite(w);
-}
-
-/**
- * @brief squareSumUI::on_threadsFindSquares_clicked - обработчик слота нажатия на кнопку "find squares (threads, computations)"
- * @details очищает контейнеры. Считывает данные из поля ввода. Рассчитывает, сколько потоков, с какими диапазонами нужно создать и запускает многопоточный поиск с использованием API высокого уровня QtConcurrent.
- * Алгоритм нетребователен к памяти, но процессор может загрузить полностью.
- */
-void squareSumUI::on_threadsFindSquares_clicked()
-{
-    if(this->getInNumber())
-    {
-        ui->logListWidget->clear();
-        m_squaresSet.clear();
-        m_squareSumsHash.clear();
-
-        QTime start = QTime::currentTime();
-        qint64 iterations,lastLimit;
-
-        //Граничное условие. Дальше этого числа не стоит пытаться возвести его в квадрат, т.к. выпадешь с переполнением и задачу не решишь.
-        //Из условия задачи следует, что максимальное значение квадрата одного из слагаемых меньше, либо равно заданному числу. Т.е. 20^2 = 20^2 + 0.
-        //В таком случае, нам не надо исследовать числа большие, чем sqrt(заданное_число) c округлением в меньшую сторону.
-        qint64 max_right_value = qSqrt(m_inNumber);
-        iterations = max_right_value/ITERATION_STEP;
-        lastLimit = max_right_value-(iterations*ITERATION_STEP);
-
-        QList<QPair<qint64,qint64>> listOfPairs;
-        for(qint64 i=0; i <= iterations; ++i)
-        {
-            listOfPairs.append(QPair<qint64,qint64>(i*ITERATION_STEP,m_inNumber));
-        }
-        listOfPairs.append(QPair<qint64,qint64>((iterations+1)*ITERATION_STEP,m_inNumber));
-
-        QHash<qint64,qint64> total = mappedReduced(listOfPairs, findSquareSumConcur, reduce);
-        qDebug()<<"jiraf" + QString::number(total.size())+" " + QString::number(start.elapsed())+" ms";
-        QHash<qint64, qint64>::const_iterator iter = total.constBegin();
-        QHash<qint64,qint64>::const_iterator stop = total.constEnd();
-
-        QStringList results;
-        while (iter != stop) {
-            results.append(QString::number(iter.key())+";"+QString::number(iter.value()));
-            ++iter;
-        }
-        ui->logListWidget->insertItems(0,results);
-    }
+    ui->logListWidget->insertItem(0, "time findSquareComputation ="+QString::number(start.elapsed()));
+    ui->logListWidget->insertItem(0, "findSize findSquareComputation ="+QString::number(m_squareSumsHash.size()));
+    return true;
 }

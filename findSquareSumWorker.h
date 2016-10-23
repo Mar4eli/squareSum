@@ -2,10 +2,9 @@
 #define FINDSQUARESUMWORKER_H
 
 #include <QThread>
-#include <QSharedPointer>
-#include <QSet>
 #include <QHash>
 #include <QTime>
+#include <QtConcurrent/QtConcurrent>
 
 class findSquareSumWorker : public QThread
 {
@@ -15,22 +14,19 @@ class findSquareSumWorker : public QThread
         this->findSquareSum();
     }
 signals:
-    void resultReady(int);
+    void resultReady(int,QStringList);
 
 public:
-    findSquareSumWorker(QSharedPointer<QHash<long long, long long>> n_findSquareSumPtr,QSharedPointer<QSet<long long>> n_sequenceSetPtr, long long n_inNumber, long long n_offset = 0, long long n_limit = 0);
+    findSquareSumWorker(long long n_inNumber);
 
 public slots:
-    QSharedPointer<QHash<qint64, qint64>> getResultHash();
+    QHash<qint64, qint64> getResultHash();
 
 private:
-    QSet<qint64> m_sequenceSet;
-    QSharedPointer<QHash<qint64,qint64>> m_findSquareSumPtr;
+    QHash<qint64,qint64> m_findSquareSumPtr;
     qint64 m_inNumber;
-    qint64 m_offset;
-    qint64 m_limit;
-    void findSquareSum();
 
+    void findSquareSum();
 };
 
 #endif // FINDSQUARESUMWORKER_H

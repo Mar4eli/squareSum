@@ -43,6 +43,9 @@ private slots:
     void on_findSquares_clicked();
     void on_findSquaresVector_clicked();
     void on_threadsFindSquares_clicked();
+    void on_findWorkerResultsReady(int n_time, QStringList n_resultsSL);
+
+    void on_findSquaresComputation_clicked();
 
 private:
     Ui::squareSumUI *ui;
@@ -56,6 +59,8 @@ private:
     bool findSumSquares(qint64 n_inputNumber);
     void squareSumHashToLog();
     bool getInNumber();
+    void blockButtons(bool n_block);
+    bool findSquareComputation();
 };
 
 #endif // SQUARESUMUI_H
