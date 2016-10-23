@@ -1,6 +1,8 @@
 #include "squareSumUI.h"
 #include "ui_squareSumUI.h"
 
+const qint64 ITERATION_STEP=100000000;
+
 squareSumUI::squareSumUI(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::squareSumUI)
@@ -222,13 +224,17 @@ void textFunc(QString n_text)
                         "from" << QThread::currentThread();
 }
 
-void findSquareSumConcur(qint64 n_iterNumber,qint64 n_offset, qint64 n_limit, qint64 n_number)
+QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
 {
     //меньше памяти, больше вычислений процессора
     QTime start = QTime::currentTime();
     QHash<qint64,qint64> m_squareSumsHash;
-    qint64 max = n_offset + n_limit;
+    qint64 n_offset = n_pair.first;
+    qint64 n_number = n_pair.second;
+
+    qint64 max = n_offset + ITERATION_STEP;
     qint64 j;
+
     if(n_offset == 0)
     {
         n_offset++;
@@ -254,7 +260,7 @@ void findSquareSumConcur(qint64 n_iterNumber,qint64 n_offset, qint64 n_limit, qi
             {
                 m_squareSumsHash.insert(x,j);
                 //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(i)<<" and " <<QString::number(j)<<"from" << QThread::currentThread();
-                qDebug()<<QString::number(x)+";"+QString::number(j);;
+                //qDebug()<<QString::number(x)+";"+QString::number(j);;
             }
         }
         else
@@ -273,9 +279,13 @@ void findSquareSumConcur(qint64 n_iterNumber,qint64 n_offset, qint64 n_limit, qi
         //            }
         //        }
     }
-    //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(n_offset)<<" to " <<QString::number(max)<<"from" << QThread::currentThread();
+    //qDebug()<<QString::number(n_offset)<<" to " <<QString::number(max)<<"from" << QThread::currentThread();
+    return m_squareSumsHash;
+}
 
-
+void reduce(QHash<qint64,qint64> &result, const QHash<qint64,qint64> &w)
+{
+    result.unite(w);
 }
 
 //Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set убивает своим find весь прирост скорости за счёт вектора
@@ -298,28 +308,35 @@ void squareSumUI::on_threadsFindSquares_clicked()
     else
     {
         QTime start = QTime::currentTime();
-        QFuture<void> f1;
-        qint64 iterations;
+        qint64 iterations,lastLimit;
         qint64 maxNumber = qSqrt(INT64_MAX);
         if (m_inNumber < maxNumber)
         {
-            iterations = m_inNumber/10000000;
+            iterations = m_inNumber/ITERATION_STEP;
+            lastLimit = m_inNumber-(iterations*ITERATION_STEP);
+
         }
         else
         {
-            iterations = maxNumber/10000000;
+            iterations = maxNumber/ITERATION_STEP;
+            lastLimit = maxNumber-(iterations*ITERATION_STEP);
         }
 
+        QList<QPair<qint64,qint64>> listOfPairs;
         for(qint64 i=0; i <= iterations; ++i)
         {
-          QtConcurrent::run(findSquareSumConcur,i,i*10000000,10000000,m_inNumber);
+            listOfPairs.append(QPair<qint64,qint64>(i*ITERATION_STEP,m_inNumber));
         }
-        qint64 fullIter = iterations*10000000;
-        QtConcurrent::run(findSquareSumConcur,iterations+1,fullIter,10000000,m_inNumber);
+        listOfPairs.append(QPair<qint64,qint64>((iterations+1)*ITERATION_STEP,m_inNumber));
 
-
-
-        qDebug()<<"slon "<<QString::number(start.elapsed());
+        QHash<qint64,qint64> total = mappedReduced(listOfPairs, findSquareSumConcur, reduce);
+        QHash<qint64, qint64>::const_iterator iter = total.constBegin();
+        QHash<qint64,qint64>::const_iterator stop = total.constEnd();
+        while (iter != stop) {
+            ui->logListWidget->insertItem(0,QString::number(iter.key())+";"+QString::number(iter.value()));
+            ++iter;
+        }
+        qDebug()<<QString::number(total.size());
     }
 }
 
