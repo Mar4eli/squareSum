@@ -24,7 +24,7 @@ public slots:
     QSharedPointer<QHash<qint64, qint64>> getResultHash();
 
 private:
-    QSharedPointer<QSet<qint64>> m_sequenceSetPtr;
+    QSet<qint64> m_sequenceSet;
     QSharedPointer<QHash<qint64,qint64>> m_findSquareSumPtr;
     qint64 m_inNumber;
     qint64 m_offset;

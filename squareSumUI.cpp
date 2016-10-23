@@ -115,6 +115,7 @@ bool squareSumUI::findSumSquares(qint64 n_inputNumber)
         }
     }
     ui->logListWidget->insertItem(0,"find time="+QString::number(start.elapsed())+" ms");
+    ui->logListWidget->insertItem(0,"find size="+QString::number(m_squareSumsHash.size())+" ms");
 
     return true;
 }
@@ -215,46 +216,66 @@ bool squareSumUI::generateSequenceVector()
     return true;
 }
 
-void squareSumUI::on_generationFinished(int n_time)
+void textFunc(QString n_text)
 {
-    ui->logListWidget->insertItem(0, "generation time="+QString::number(n_time));
-    ui->logListWidget->insertItem(0,"Set size="+QString::number(m_squaresSetPtr->size()));
-
-    findSquareSumWorker *worker = new findSquareSumWorker(m_squareSumsHashPtr, m_squaresSetPtr, m_inNumber);
-    QObject::connect(worker,
-                     SIGNAL(resultReady(int)),
-                     this,
-                     SLOT(on_findSquaresThreadFinished(int)));
-
-    QObject::connect(worker,
-                     SIGNAL(finished()),
-                     worker,
-                     SLOT(deleteLater()));
-    worker->start();
-    //TODO: а как остановить?)))
-
-//    this->findSumSquaresPtr(m_inNumber);
-//    // TODO переделать на замену значений в таблице
-//    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
-//    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
-//    while (iter != stop) {
-//        ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-//        ++iter;
-    //    }
+    qDebug() << n_text << " " <<
+                        "from" << QThread::currentThread();
 }
 
-void squareSumUI::on_findSquaresThreadFinished(int n_time)
+void findSquareSumConcur(qint64 n_iterNumber,qint64 n_offset, qint64 n_limit, qint64 n_number)
 {
-    ui->logListWidget->insertItem(0, "find time="+QString::number(n_time));
-    ui->logListWidget->insertItem(0,"find hash="+QString::number(m_squareSumsHashPtr->size()));
-
-    // TODO переделать на замену значений в таблице
-    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHashPtr->constBegin();
-    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHashPtr->constEnd();
-    while (iter != stop) {
-        ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-        ++iter;
+    //меньше памяти, больше вычислений процессора
+    QTime start = QTime::currentTime();
+    QHash<qint64,qint64> m_squareSumsHash;
+    qint64 max = n_offset + n_limit;
+    qint64 j;
+    if(n_offset == 0)
+    {
+        n_offset++;
     }
+    qint64 i;
+    for(i = n_offset; i <= max; ++i)
+    {
+        qint64 x=i*i;
+        if(x <= n_number)
+        {
+            j = n_number - x;
+            if(j != 0)
+            {
+                qint64 z = qSqrt(j);
+                if(j % z == 0)
+                {
+                    m_squareSumsHash.insert(x,j);
+                    //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(i)<<" and " <<QString::number(j)<<"from" << QThread::currentThread();
+                    qDebug()<<QString::number(x)+";"+QString::number(j);
+                }
+            }
+            else
+            {
+                m_squareSumsHash.insert(x,j);
+                //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(i)<<" and " <<QString::number(j)<<"from" << QThread::currentThread();
+                qDebug()<<QString::number(x)+";"+QString::number(j);;
+            }
+        }
+        else
+        {
+            break;
+        }
+
+        //        qint64 x = qSqrt(i);
+        //        if(i % x == 0)
+        //        {
+        //            j = n_number - i;
+        //            qint64 z = qSqrt(j);
+        //            if(j % z == 0)
+        //            {
+        //                m_squareSumsHash.insert(i,j);
+        //            }
+        //        }
+    }
+    //qDebug()<<"iterNumb="<<QString::number(n_iterNumber)<<" "<<QString::number(n_offset)<<" to " <<QString::number(max)<<"from" << QThread::currentThread();
+
+
 }
 
 //Использование std::vector обходит это. но из std::vector нельзя перейти в QSet. Использование std::set убивает своим find весь прирост скорости за счёт вектора
@@ -276,17 +297,29 @@ void squareSumUI::on_threadsFindSquares_clicked()
     }
     else
     {
-        generationWorker *worker = new generationWorker(m_squaresSetPtr,m_inNumber);
-        QObject::connect(worker,
-                         SIGNAL(resultReady(int)),
-                         this,
-                         SLOT(on_generationFinished(int)));
+        QTime start = QTime::currentTime();
+        QFuture<void> f1;
+        qint64 iterations;
+        qint64 maxNumber = qSqrt(INT64_MAX);
+        if (m_inNumber < maxNumber)
+        {
+            iterations = m_inNumber/10000000;
+        }
+        else
+        {
+            iterations = maxNumber/10000000;
+        }
 
-        QObject::connect(worker,
-                         SIGNAL(finished()),
-                         worker,
-                         SLOT(deleteLater()));
-        worker->start();
+        for(qint64 i=0; i <= iterations; ++i)
+        {
+          QtConcurrent::run(findSquareSumConcur,i,i*10000000,10000000,m_inNumber);
+        }
+        qint64 fullIter = iterations*10000000;
+        QtConcurrent::run(findSquareSumConcur,iterations+1,fullIter,10000000,m_inNumber);
+
+
+
+        qDebug()<<"slon "<<QString::number(start.elapsed());
     }
 }
 

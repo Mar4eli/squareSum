@@ -10,10 +10,13 @@
 #include <QException>
 #include <generationWorker.h>
 #include <findSquareSumWorker.h>
+#include <QtConcurrent/QtConcurrent>
 
 namespace Ui {
 class squareSumUI;
 }
+
+using namespace QtConcurrent;
 
 class squareSumUI : public QMainWindow
 {
@@ -53,9 +56,7 @@ private:
     //bool findSumSquaresStd(qint64 n_inputNumber);
 
     bool findSumSquaresPtr(qint64 n_inputNumber);
-private slots:
-    void on_generationFinished(int n_time);
-    void on_findSquaresThreadFinished(int n_time);
+
 };
 
 #endif // SQUARESUMUI_H
