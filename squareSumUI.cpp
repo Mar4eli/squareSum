@@ -34,28 +34,59 @@ void squareSumUI::on_findSquares_clicked()
     }
     else
     {
-        this->generateSequence();
-        this->findSumSquares(m_inNumber);
-
-        // TODO переделать на замену значений в таблице
-        QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
-        QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
-        while (iter != stop) {
-            ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-            ++iter;
+        if(this->generateSequence())
+        {
+            if(this->findSumSquares(m_inNumber))
+            {
+                this->squareSumHashToLog();
+            }
         }
     }
 }
 
+void squareSumUI::squareSumHashToLog()
+{
+    QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
+    QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
+
+    QStringList results;
+    while (iter != stop) {
+        results.append(QString::number(iter.key())+";"+QString::number(iter.value()));
+        ++iter;
+    }
+    ui->logListWidget->insertItems(0,results);
+}
+
+bool squareSumUI::getInNumber()
+{
+    QString inText = ui->leIn->text();
+    if(inText.isEmpty())
+    {
+        ui->logListWidget->insertItem(0,"Введите, пожалуйста, число и повторите попытку.");
+        return false;
+    }
+    m_inNumber = ui->leIn->text().toULongLong();
+
+    //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
+    if(inText != "0" && m_inNumber == 0)
+    {
+        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * @brief squareSumUI::generateSequence - генерирует последовательность чисел с шагом 2, начиная с 1.
- * @details Из школьного курса алгебры известно, что квадрат любого натурального числа может быть
- * представлен, как сумма N натуральных чисел с шагом два, где N - натуральное число, чей квадрат мы ищем.
+ * @details Из школьного курса алгебры известно, что квадрат любого натурального числа N может быть
+ * представлен, как сумма N натуральных чисел с шагом два.
  * Пример:
- * Дана последовательность: 1, 3, 5, 7. 2^2 = 1+3 = 4; 3^2 = 1 + 3 + 5 = 4 + 5 = 9.
+ * Дана последовательность: 1, 3, 5, 7...
+ * 2^2 = 1+3 = 4;
+ * 3^2 = 1 + 3 + 5 = 4 + 5 = 9.
  *
  * При этом, операции сложения выполняются быстрее, чем операции умножения/возведения в степень, т.к. они скрывают в себе множественные операции сложения.
- * @param n_count - сколько элементов должно быть в последовательности.
  * @return true - если прошло без существенных для нас ошибок. (Переполнение стека тут не учитывается).
  */
 bool squareSumUI::generateSequence()
@@ -114,30 +145,18 @@ void squareSumUI::on_findSquaresVector_clicked()
 {
     try
     {
-        ui->logListWidget->clear();
-        QString inText = ui->leIn->text();
-        m_inNumber = ui->leIn->text().toULongLong();
-        m_squaresVector.clear();
-        m_squaresSet.clear();
-        m_squareSumsHash.clear();
+        if(this->getInNumber())
+        {
+            ui->logListWidget->clear();
+            m_squaresVector.clear();
+            m_squaresSet.clear();
+            m_squareSumsHash.clear();
 
-        //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
-        if(inText != "0" && m_inNumber == 0)
-        {
-            ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
-        }
-        else
-        {
             if(this->generateSequenceVector())
             {
-                this->findSumSquares(m_inNumber);
-
-                // TODO переделать на замену значений в таблице
-                QHash<qint64, qint64>::const_iterator iter = m_squareSumsHash.constBegin();
-                QHash<qint64,qint64>::const_iterator stop = m_squareSumsHash.constEnd();
-                while (iter != stop) {
-                    ui->logListWidget->insertItem(0,QString::number(iter.key())+" "+QString::number(iter.value()));
-                    ++iter;
+                if(this->findSumSquares(m_inNumber))
+                {
+                    this->squareSumHashToLog();
                 }
             }
         }
@@ -208,19 +227,12 @@ bool squareSumUI::generateSequenceVector()
     return true;
 }
 
-void textFunc(QString n_text)
-{
-    qDebug() << n_text << " " <<
-                        "from" << QThread::currentThread();
-}
-
-QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
+QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_offsetInNumberPair)
 {
     //меньше памяти, больше вычислений процессора
-    QTime start = QTime::currentTime();
-    QHash<qint64,qint64> m_squareSumsHash;
-    qint64 n_offset = n_pair.first;
-    qint64 n_number = n_pair.second;
+    QHash<qint64,qint64> squareSumsHash;
+    qint64 n_offset = n_offsetInNumberPair.first;
+    qint64 n_number = n_offsetInNumberPair.second;
 
     qint64 max = n_offset + ITERATION_STEP;
     qint64 j;
@@ -231,9 +243,22 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
     }
     qint64 i;
     qreal z;
+    //находим квадрат предыдущего числа из последовательности.
+    qint64 x=(n_offset-1)*(n_offset-1);
+
+    //квадрат любого натурального числа N может быть представлен,
+    //как сумма N элементов последовательности натуральных чисел, начинающейся с 1, и с шагом 2.
+    //1,3,5,7...
+    qint64 sequence = 1 + (n_offset-1)*2;
     for(i = n_offset; i <= max; ++i)
     {
-        qint64 x=i*i;
+        //используя последовательность и сложение вместо возведения в степень, мы экономим такты.
+        //так как процессор разбивает операцию умножения, на операции сложения.
+        //5*5 = 5 + 5 + 5 + 5 + 5
+        //на моём домашнем компьютере int64_max выполняется примерно 15100 мс при умножение
+        // и 14700-14800 при сложении. экономия около 2,5%
+        x+=sequence;
+        sequence+=2;
         if(x <= n_number)
         {
             j = n_number - x;
@@ -241,33 +266,22 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_pair)
             {
                 if(modf(qSqrt(j),&z) == 0)
                 {
-                    m_squareSumsHash.insert(x,j);
+                    squareSumsHash.insert(x,j);
                 }
             }
             else
             {
-                m_squareSumsHash.insert(x,j);
+                squareSumsHash.insert(x,j);
             }
         }
         else
         {
             break;
         }
-    }
-    //qDebug()<<QString::number(n_offset)<<" to " <<QString::number(max)<<"from" << QThread::currentThread();
-    return m_squareSumsHash;
 
-    // более длительный вариант кода
-    //        qint64 x = qSqrt(i);
-    //        if(modf(qSqrt(i),&z) == 0)
-    //        {
-    //            j = n_number - i;
-    //            qint64 z = qSqrt(j);
-    //            if(j % z == 0)
-    //            {
-    //                m_squareSumsHash.insert(i,j);
-    //            }
-    //        }
+    }
+
+    return squareSumsHash;
 }
 
 void reduce(QHash<qint64,qint64> &result, const QHash<qint64,qint64> &w)
@@ -277,19 +291,12 @@ void reduce(QHash<qint64,qint64> &result, const QHash<qint64,qint64> &w)
 
 void squareSumUI::on_threadsFindSquares_clicked()
 {
-    ui->logListWidget->clear();
-    QString inText = ui->leIn->text();
-    m_inNumber = ui->leIn->text().toULongLong();
-    m_squaresSet.clear();
-    m_squareSumsHash.clear();
+    if(this->getInNumber())
+    {
+        ui->logListWidget->clear();
+        m_squaresSet.clear();
+        m_squareSumsHash.clear();
 
-    //Делаем проверку на переполнение qint64 в строке ввода и на то, что ввели текст.
-    if(inText != "0" && m_inNumber == 0)
-    {
-        ui->logListWidget->insertItem(0,"Введён текст или число превыщающее INT64_MAX");
-    }
-    else
-    {
         QTime start = QTime::currentTime();
         qint64 iterations,lastLimit;
         qint64 maxNumber = qSqrt(INT64_MAX);

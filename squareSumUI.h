@@ -71,6 +71,8 @@ private:
 
     bool findSumSquaresPtr(qint64 n_inputNumber);
 
+    void squareSumHashToLog();
+    bool getInNumber();
 };
 
 #endif // SQUARESUMUI_H
