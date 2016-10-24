@@ -1,8 +1,7 @@
 #include "squareSumUI.h"
 #include "ui_squareSumUI.h"
 
-//TODO сделать вариант на основе http://itnotesblog.ru/note.php?id=145
-//Т.е. потоки не через qConcurrent, а ручные.
+
 squareSumUI::squareSumUI(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::squareSumUI)
@@ -22,7 +21,6 @@ squareSumUI::~squareSumUI()
  */
 void squareSumUI::on_findSquares_clicked()
 {
-    ui->logListWidget->clear();
     m_squaresSet.clear();
     m_squareSumsHash.clear();
 
@@ -115,6 +113,7 @@ bool squareSumUI::generateSequence()
         }
         sum += sequence;
     }
+    ui->logListWidget->insertItem(0,"-------------------------------------------------");
     ui->logListWidget->insertItem(0,"generation time=" + QString::number(start.elapsed()) + " ms");
     ui->logListWidget->insertItem(0,"QSet size=" + QString::number(m_squaresSet.size()) + " ms");
     return true;
@@ -170,7 +169,6 @@ void squareSumUI::on_findSquaresVector_clicked()
     {
         if(this->getInNumber())
         {
-            ui->logListWidget->clear();
             m_squaresVector.clear();
             m_squaresSet.clear();
             m_squareSumsHash.clear();
@@ -233,6 +231,7 @@ bool squareSumUI::generateSequenceVector()
         }
         sum += number;
     };
+    ui->logListWidget->insertItem(0,"-------------------------------------------------");
     ui->logListWidget->insertItem(0,"vectorSize=" + QString::number(m_squaresVector.size()));
     m_squaresSet = m_squaresVector.toList().toSet();
     m_squaresVector.clear();
@@ -252,7 +251,7 @@ void squareSumUI::on_threadsFindSquares_clicked()
 {
     if(this->getInNumber())
     {
-        ui->logListWidget->clear();
+        //ui->logListWidget->clear();
         m_squaresSet.clear();
         m_squareSumsHash.clear();
 
@@ -293,7 +292,8 @@ void squareSumUI::blockButtons(bool n_block)
  */
 void squareSumUI::on_findWorkerResultsReady(int n_time, QStringList n_resultsSL)
 {
-    n_resultsSL.prepend("time="+QString::number(n_time)+" ms");
+    n_resultsSL.append("time="+QString::number(n_time)+" ms");
+    n_resultsSL.append("-----------------------------------");
     ui->logListWidget->insertItems(0,n_resultsSL);
     this->blockButtons(false);
 }
@@ -327,7 +327,7 @@ bool squareSumUI::findSquareComputation()
     qint64 max = qSqrt(m_inNumber);
 
     qint64 i,j;
-    qreal z;
+    qreal z,secondSquareRoot;
     //находим квадрат предыдущего числа из последовательности. Можно было сделать -1 до, но оставил для наглядности.
     qint64 x=0;
 
@@ -353,15 +353,16 @@ bool squareSumUI::findSquareComputation()
             if(j != 0)
             {
                 //проверяем, является ли оно квадратом. т.е. пустой ли остаток от взятия корня.
-                if(modf(qSqrt(j),&z) == 0)
+                secondSquareRoot = qSqrt(j);
+                if(modf(secondSquareRoot,&z) == 0)
                 {
-                    m_squareSumsHash.insert(x,j);
+                    m_squareSumsHash.insert(i,secondSquareRoot);
                 }
             }
             else
             {
                 //0*0=0 - тоже квадрат.
-                m_squareSumsHash.insert(x,j);
+                m_squareSumsHash.insert(i,j);
             }
         }
         else
@@ -369,7 +370,17 @@ bool squareSumUI::findSquareComputation()
             break;
         }
     }
+    ui->logListWidget->insertItem(0, "-------------------------------------------------");
     ui->logListWidget->insertItem(0, "time findSquareComputation ="+QString::number(start.elapsed()));
     ui->logListWidget->insertItem(0, "findSize findSquareComputation ="+QString::number(m_squareSumsHash.size()));
     return true;
+}
+
+/**
+ * @brief squareSumUI::on_clearLog_clicked - обработчик нажатия на кнопку "clear log".
+ * @details Полностью очищает лог.
+ */
+void squareSumUI::on_clearLog_clicked()
+{
+    ui->logListWidget->clear();
 }

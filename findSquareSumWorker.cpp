@@ -33,7 +33,7 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_offsetInNumberPa
         offset++;
     }
     qint64 i,j;
-    qreal z;
+    qreal z,secondSquareRoot;
     //находим квадрат предыдущего числа из последовательности. Можно было сделать -1 до, но оставил для наглядности.
     qint64 x=(offset-1)*(offset-1);
 
@@ -59,15 +59,16 @@ QHash<qint64,qint64> findSquareSumConcur(QPair<qint64,qint64> n_offsetInNumberPa
             if(j != 0)
             {
                 //проверяем, является ли оно квадратом. т.е. пустой ли остаток от взятия корня.
-                if(modf(qSqrt(j),&z) == 0)
+                secondSquareRoot = qSqrt(j);
+                if(modf(secondSquareRoot,&z) == 0)
                 {
-                    squareSumsHash.insert(x,j);
+                    squareSumsHash.insert(i,secondSquareRoot);
                 }
             }
             else
             {
                 //0*0=0 - тоже квадрат.
-                squareSumsHash.insert(x,j);
+                squareSumsHash.insert(i,j);
             }
         }
         else
